@@ -32,8 +32,15 @@ const HUNGER_DECAY = 3.4;
 const OFFLINE_CAP = 90 * DAY;
 const MAX_DIARY = 60;
 
+const AI_TIMEOUT = 12 * SEC, DIARY_TIMEOUT = 15 * SEC, CLOUD_TIMEOUT = 10 * SEC;
+const AI_PER_DAY = 40, AI_COOLDOWN = 3 * SEC;
+const CLOUD_DEBOUNCE = 4 * SEC, CLOUD_MAX_CHARS = 60 * 1024;
+const CODE_LEN = 12, CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
 let S = load();
 let resetting = false;
+let aiCfg = { base: '', enabled: true };
+let lastFp = '', dirty = false, cloudTimer = 0, cloudPending = false;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const pick = (a) => a[(Math.random() * a.length) | 0];
@@ -44,7 +51,7 @@ const daysTogether = () => Math.floor((Date.now() - S.bornAt) / DAY) + 1;
 function load() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) return Object.assign(fresh(), JSON.parse(raw));
+    if (raw) return normalize(Object.assign(fresh(), JSON.parse(raw)));
   } catch (e) {}
   return fresh();
 }
@@ -52,17 +59,27 @@ function load() {
 function fresh() {
   const now = Date.now();
   return { name: null, species: null, bornAt: now, lastSeen: now, hunger: 70, mood: 68, growth: 0,
-           feeds: 0, touches: 0, talks: 0, diary: [], lastDay: 0 };
+           feeds: 0, touches: 0, talks: 0, diary: [], lastDay: 0,
+           sid: null, rev: 1, syncedAt: 0, ai: { talks: 0, day: 0, lastAt: 0 } };
+}
+
+function writeRaw() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
 }
 
 function save() {
   if (resetting) return;
   S.lastSeen = Date.now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
+  const fp = fingerprint();
+  if (fp !== lastFp) { lastFp = fp; S.rev = (S.rev || 0) + 1; dirty = true; }
+  writeRaw();
+  if (dirty) scheduleCloudPush();
 }
 
 function resetSave() {
   resetting = true;
+  dirty = false;
+  clearTimeout(cloudTimer);
   localStorage.removeItem(SAVE_KEY);
 }
 
@@ -121,14 +138,15 @@ function adopt(name, speciesId) {
     S.name = name;
     S.bornAt = Date.now();
     S.lastSeen = Date.now();
+    if (!S.sid) S.sid = makeCode(CODE_LEN);
   } else {
     S.name = name;
   }
   return firstTime;
 }
 
-function addDiary(text) {
-  S.diary.unshift({ t: Date.now(), text });
+function addDiary(text, by) {
+  S.diary.unshift({ t: Date.now(), text, by: by === 'ai' ? 'ai' : 'auto' });
   if (S.diary.length > MAX_DIARY) S.diary.length = MAX_DIARY;
 }
 
@@ -138,3 +156,171 @@ function dailyTick() {
   S.lastDay = d;
   return d;
 }
+
+/* ---------- 二期：AI 对话 / AI 日记 / 存档上云（仅数据层，不读取也不写入任何 DOM） ---------- */
+
+function normalize(s) {
+  if (typeof s.rev !== 'number' || !isFinite(s.rev) || s.rev < 1) s.rev = 1;
+  if (typeof s.syncedAt !== 'number' || !isFinite(s.syncedAt)) s.syncedAt = 0;
+  if (typeof s.sid !== 'string' || !s.sid) s.sid = s.name ? makeCode(CODE_LEN) : null;
+  if (!s.ai || typeof s.ai !== 'object') s.ai = { talks: 0, day: 0, lastAt: 0 };
+  ['talks', 'day', 'lastAt'].forEach((k) => {
+    if (typeof s.ai[k] !== 'number' || !isFinite(s.ai[k])) s.ai[k] = 0;
+  });
+  if (!Array.isArray(s.diary)) s.diary = [];
+  return s;
+}
+
+function makeCode(n) {
+  const bytes = new Uint8Array(n);
+  const c = typeof crypto !== 'undefined' ? crypto : null;
+  if (c && c.getRandomValues) c.getRandomValues(bytes);
+  else for (let i = 0; i < n; i++) bytes[i] = (Math.random() * 256) | 0;
+  let out = '';
+  for (let i = 0; i < n; i++) out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  return out;
+}
+
+const normCode = (c) => String(c == null ? '' : c).toUpperCase().replace(/[^A-Z0-9]/g, '');
+const cleanText = (s, max) => typeof s === 'string'
+  ? s.replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, max) : '';
+const apiRoot = () => (aiCfg.base ? String(aiCfg.base).replace(/\/+$/, '') : '') + '/api';
+
+function fingerprint() {
+  const head = S.diary.length ? S.diary[0].t + '|' + S.diary[0].text : '';
+  return [S.name, S.species, S.bornAt, S.sid, S.lastDay, S.feeds, S.touches, S.talks,
+          Math.round(S.hunger), Math.round(S.mood), Math.round(S.growth), S.diary.length, head].join('~');
+}
+
+function facts() {
+  return { sid: S.sid, name: S.name, species: S.species, stage: STAGES[stageIndex()].name,
+           days: daysTogether(), hunger: Math.round(S.hunger), mood: Math.round(S.mood),
+           feeds: S.feeds, touches: S.touches, talks: S.talks };
+}
+
+function aiConfig(cfg) {
+  if (cfg && typeof cfg.base === 'string') aiCfg.base = cfg.base;
+  if (cfg && typeof cfg.enabled === 'boolean') aiCfg.enabled = cfg.enabled;
+  return { base: aiCfg.base, enabled: aiCfg.enabled };
+}
+
+async function postJSON(path, payload, timeout) {
+  if (!aiCfg.enabled) return { ok: false, reason: 'off' };
+  let ctl = null;
+  try { ctl = new AbortController(); } catch (e) {}
+  const timer = setTimeout(() => { if (ctl) { try { ctl.abort(); } catch (e) {} } }, timeout);
+  try {
+    const res = await fetch(apiRoot() + path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctl && ctl.signal
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (data && typeof data === 'object') {
+      if (data.ok === true) return { ok: true, data };
+      if (data.ok === false) return { ok: false, reason: cleanText(data.reason, 24) || 'http', data, status: res.status };
+    }
+    return { ok: false, reason: res.ok ? 'parse' : 'http', status: res.status };
+  } catch (e) {
+    return { ok: false, reason: 'network' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function aiGate() {
+  if (!aiCfg.enabled || !S.name) return 'off';
+  const day = Math.floor(Date.now() / DAY);
+  if (S.ai.day !== day) { S.ai.day = day; S.ai.talks = 0; }
+  if (Date.now() - S.ai.lastAt < AI_COOLDOWN) return 'busy';
+  if (S.ai.talks >= AI_PER_DAY) return 'limit';
+  return '';
+}
+
+async function aiSay(text) {
+  const t = cleanText(text, 200);
+  if (!t) return { ok: false, reason: 'empty' };
+  const gate = aiGate();
+  if (gate) return { ok: false, reason: gate };
+  S.ai.talks++;
+  S.ai.lastAt = Date.now();
+  const payload = facts();
+  payload.text = t;
+  payload.diary = S.diary.slice(0, 2).map((d) => cleanText(d.text, 120));
+  const r = await postJSON('/chat', payload, AI_TIMEOUT);
+  const reply = r.ok ? cleanText(r.data.reply, 120) : '';
+  if (!reply) {
+    S.ai.talks = Math.max(0, S.ai.talks - 1);
+    return { ok: false, reason: r.ok ? 'empty' : r.reason };
+  }
+  save();
+  return { ok: true, reply };
+}
+
+async function aiDiary(kind) {
+  const k = kind === 'daily' || kind === 'grow' ? kind : 'return';
+  const gate = aiGate();
+  if (gate) return { ok: false, reason: gate };
+  S.ai.lastAt = Date.now();
+  const r = await postJSON('/diary', Object.assign(facts(), { kind: k }), DIARY_TIMEOUT);
+  const text = r.ok ? cleanText(r.data.text, 240) : '';
+  if (!text) return { ok: false, reason: r.ok ? 'empty' : r.reason };
+  return { ok: true, text };
+}
+
+function getSaveCode() {
+  return S.sid ? normCode(S.sid).replace(/(.{4})(?=.)/g, '$1-') : null;
+}
+
+function scheduleCloudPush() {
+  if (resetting || !aiCfg.enabled || !S.sid || !S.name) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => cloudPush(), CLOUD_DEBOUNCE);
+}
+
+async function cloudPush() {
+  if (resetting) return { ok: false, reason: 'off' };
+  if (cloudPending) return { ok: false, reason: 'busy' };
+  if (!aiCfg.enabled || !S.sid || !S.name) return { ok: false, reason: 'off' };
+  const body = { sid: S.sid, rev: S.rev, save: S };
+  if (JSON.stringify(body).length > CLOUD_MAX_CHARS) return { ok: false, reason: 'too-large' };
+  cloudPending = true;
+  try {
+    const r = await postJSON('/save', body, CLOUD_TIMEOUT);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    if (typeof r.data.rev === 'number' && r.data.rev > S.rev) S.rev = r.data.rev;
+    S.syncedAt = Date.now();
+    dirty = false;
+    writeRaw();
+    return { ok: true, rev: S.rev };
+  } finally {
+    cloudPending = false;
+  }
+}
+
+async function cloudPull(code) {
+  const sid = normCode(code == null || code === '' ? S.sid : code);
+  if (!sid) return { ok: false, reason: 'empty' };
+  if (!aiCfg.enabled) return { ok: false, reason: 'off' };
+  const r = await postJSON('/restore', { sid }, CLOUD_TIMEOUT);
+  if (!r.ok) return { ok: false, reason: r.reason };
+  const doc = r.data.save;
+  if (!doc || typeof doc !== 'object' || !doc.name) return { ok: false, reason: 'empty' };
+  const incoming = normalize(Object.assign(fresh(), doc));
+  incoming.sid = sid;
+  if (S.name && sid === S.sid && incoming.rev < S.rev) return { ok: false, reason: 'stale' };
+  S = incoming;
+  lastFp = fingerprint();
+  dirty = false;
+  writeRaw();
+  return { ok: true, source: S };
+}
+
+function cloudStatus() {
+  return { code: getSaveCode(), rev: S.rev || 0, syncedAt: S.syncedAt || 0,
+           dirty: !!dirty, pending: !!cloudPending, enabled: !!(aiCfg.enabled && S.sid && S.name) };
+}
+
+lastFp = fingerprint();
