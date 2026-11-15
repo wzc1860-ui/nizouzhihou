@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { buildChatPrompt, buildDiaryPrompt, persona, corpus } from './lib/prompt.js';
-import { aiReady, chat, diary } from './lib/llm.js';
+import { aiReady, chat, diary, driverInfo } from './lib/llm.js';
 import * as store from './lib/store.js';
 
 const MAX_BODY = 32 * 1024;
@@ -51,7 +51,9 @@ export async function handleApi(pathname, rawBody, ctx = {}) {
   const route = String(pathname || '').replace(/\/+$/, '');
 
   if (route === '/api/health') {
-    return { status: 200, json: { ok: true, ai: aiReady(), store: store.info(), cards: persona.cards.length, corpus: corpus.items.length } };
+    const d = driverInfo();
+    return { status: 200, json: { ok: true, ai: aiReady(), driver: d.driver, model: d.model,
+      store: store.info(), cards: persona.cards.length, corpus: corpus.items.length } };
   }
 
   if (route !== '/api/chat' && route !== '/api/diary' && route !== '/api/save' && route !== '/api/restore') {
@@ -156,6 +158,6 @@ const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.ar
 if (isMain || process.env.NZZH_SERVE === '1') {
   const port = +(process.env.NZZH_PORT || 8787);
   createApiServer().listen(port, () => {
-    console.log(`[nizouzhihou] api on :${port} · ai=${aiReady() ? 'model' : 'local-fallback'} · store=${JSON.stringify(store.info())} · cards=${persona.cards.length}`);
+    console.log(`[nizouzhihou] api on :${port} · ai=${aiReady() ? driverInfo().driver : 'local-fallback'} · store=${JSON.stringify(store.info())} · cards=${persona.cards.length}`);
   });
 }
