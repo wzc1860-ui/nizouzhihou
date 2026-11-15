@@ -1,0 +1,14 @@
+{
+  "name": "nizouzhihou-cloud",
+  "private": true,
+  "version": "0.1.0",
+  "description": "《你走之后》B 线服务端：AI 对话 / AI 日记 / 存档上云。零依赖，Node 18+ 原生 ESM。",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/smoke.js"
+  }
+}
