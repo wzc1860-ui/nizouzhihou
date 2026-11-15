@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1220">
+<title>你走之后 · 一只关掉网页也在长大的云端宠物</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">你 走 之 后</div>
+    <div class="day" id="dayLabel">在一起的第 1 天</div>
+  </header>
+
+  <section class="stage-wrap">
+    <canvas id="pet"></canvas>
+    <div class="pet-name"><span id="petName"></span><em id="petSpecies"></em><em id="petStage">小小</em></div>
+    <div class="pet-line" id="petLine"></div>
+  </section>
+
+  <section class="bars">
+    <div class="bar"><span>饱食</span><i><b class="f-hunger"></b></i><em id="numHunger">0</em></div>
+    <div class="bar"><span>心情</span><i><b class="f-mood"></b></i><em id="numMood">0</em></div>
+    <div class="bar"><span>成长</span><i><b class="f-growth"></b></i><em id="numGrowth">0</em></div>
+  </section>
+
+  <section class="actions">
+    <button type="button" data-act="feed">喂食</button>
+    <button type="button" data-act="pet">抚摸</button>
+    <button type="button" data-act="talk">说话</button>
+  </section>
+
+  <section class="talk" id="talkBox" hidden>
+    <div class="talk-log" id="talkLog"></div>
+    <div class="talk-row">
+      <input id="talkInput" type="text" maxlength="40" placeholder="跟它说点什么" autocomplete="off">
+      <button type="button" id="talkSend">说给它</button>
+    </div>
+  </section>
+
+  <section class="diary">
+    <h2>它的日记</h2>
+    <ul id="diaryList"></ul>
+  </section>
+
+  <footer class="foot">
+    <p>你走之后，它还在。</p>
+    <button type="button" class="ghost" id="btnReset">重新领养</button>
+  </footer>
+</div>
+
+<div class="adopt" id="adoptMask" hidden>
+  <div class="adopt-card">
+    <p class="adopt-kicker">一只云端宠物，装在这个盒子里</p>
+    <div class="box" id="boxFace">
+      <div class="box-art"><span>?</span></div>
+      <p class="box-tip">八只里随机一只。拆开之前，谁也不知道是谁在等你。</p>
+      <button type="button" id="openBtn">拆开</button>
+    </div>
+    <div class="reveal" id="revealFace" hidden>
+      <img id="revealImg" alt="拆到的宠物">
+      <p class="reveal-name"><b id="revealSpecies"></b><em id="revealRarity"></em></p>
+      <p class="reveal-greet" id="revealGreet"></p>
+      <input id="adoptInput" type="text" maxlength="8" placeholder="给它取个名字" autocomplete="off">
+      <button type="button" id="adoptBtn">就叫这个</button>
+    </div>
+  </div>
+</div>
+
+<script src="state.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
