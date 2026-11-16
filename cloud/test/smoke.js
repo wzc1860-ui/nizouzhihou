@@ -304,5 +304,22 @@ await step('文件驱动读写可用，且落盘目录可指定在仓库外', as
   }
 });
 
+await step('兜底日记：8 张卡 × 3 种场景，不出现重复主语、双句号、超长', async () => {
+  const { localDiary } = await import('../lib/local.js');
+  const cards = JSON.parse(readFileSync(join(root, 'cloud', 'persona.json'), 'utf8')).cards;
+  assert.equal(cards.length, 8, '人设卡应齐全');
+  for (const c of cards) {
+    for (const kind of ['return', 'daily', 'grow']) {
+      for (const hunger of [0, 55]) {
+        const t = localDiary({ species: c.id, name: '小满', days: 3, hunger, mood: 62, stage: '少年', kind });
+        assert.ok(/^第 3 天。/.test(t), `${c.id}/${kind} 丢了天数开头：${t}`);
+        assert.ok(t.length <= 120, `${c.id}/${kind} 超过 120 字：${t.length}`);
+        assert.ok(!/。。|[，、]。/.test(t), `${c.id}/${kind} 标点叠了：${t}`);
+        assert.ok(!/(你不在的时候|你不在的这段时间)(主人|把主人)/.test(t), `${c.id}/${kind} 主语重复：${t}`);
+      }
+    }
+  }
+});
+
 console.log(results.join('\n'));
 console.log(process.exitCode ? `\n存在失败用例` : `\n${results.length} 个用例全部通过`);

@@ -51,18 +51,24 @@ export function localReply(f, rnd = Math.random) {
 
 const HOUR_WORD = (h) => (h < 1 ? '不到一个小时' : h < 24 ? `${h} 个小时` : `${Math.round(h / 24)} 天`);
 
+/* persona.json 的 offline 是给模型看的完整句子（prompt.js 里独立成句），
+   直接拼到"你不在的时候"后面会写成"你不在的时候主人不在时…。。"：先去句末句号，再去掉自带的主语/时间前缀。 */
+const LEAD_CLAUSE = /^(主人不在的?时(候)?|主人睡着以后|把主人不在的时间用来)[，,]?/;
+const offlineClause = (c) => String(c.offline || '').replace(/。+$/g, '').replace(LEAD_CLAUSE, '').trim();
+
 export function localDiary(f, rnd = Math.random) {
   const c = cardFor(f.species);
   const day = Math.max(1, Math.round(+f.days || 1));
   const kind = ['return', 'daily', 'grow'].includes(f.kind) ? f.kind : 'return';
   const hungry = +f.hunger < 30;
   const open = `第 ${day} 天。`;
+  const away = offlineClause(c);
   const body = {
     return: hungry
-      ? `你不在的这段时间我把饭留到最后才吃，还是饿了。${c.offline.split('，')[0]}。`
-      : `你不在的时候${c.offline}。回来这一秒，我这边亮了一下。`,
+      ? `你不在的这段时间我把饭留到最后才吃，还是饿了。${away}。`
+      : `你不在的时候${away}。回来这一秒，我这边亮了一下。`,
     daily: `${c.habit}，今天也做了。心情 ${Math.round(+f.mood || 0)}，不算差。`,
-    grow: `我又大了一点，现在是「${f.stage || ''}」。你不在的时候${c.offline.replace(/。$/g, '')}，这些都长在身体里。`
+    grow: `我又大了一点，现在是「${f.stage || ''}」。你不在的时候${away}，这些都长在身体里。`
   }[kind];
   const tail = rnd() < 0.4 ? `今天想你说的是：${pick(c.voice_seed, rnd)}` : '';
   return (open + body + (tail ? ' ' + tail : '')).slice(0, 120);
