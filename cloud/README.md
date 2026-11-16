@@ -100,6 +100,8 @@ Agent 路线的实现要点（`lib/agent.js`；12 条用例逐条对着官方 AP
 
 ## 部署到 Qoder Sites：已核实的能力边界（2026-11-15，docs.qoder.com）
 
+> 2026-11-16 更新：本节为部署前的文档调研，其中"免费档无数据库"等结论已被实测推翻——本账号成功分配了 database + functions + qoder。实际部署方式见文末《实际部署》一节。
+
 - **个人免费档只支持静态站点托管，不支持数据库与存储服务** → ④ 存档上云在免费档不成立，只能靠付费个人档，或外部 Node。
 - **Teams / Enterprise 档不支持公开访问**（只能组织内共享）→ 赛事要求"公开链接可匿名访问"，必须走个人档。
 - Sites 的能力形态是"站点调用 Cloud Agents + 站点的数据库与存储"，由内置的 Sites Skills（`sites:sites-building` / `sites-build-agent-app` / `sites-hosting` / `sites-management`）和 `qoder sites <operation>` 驱动；管理动作（发布、删除、改共享策略、删 Secret）带二次确认。
@@ -137,3 +139,25 @@ Agent 路线的实现要点（`lib/agent.js`；12 条用例逐条对着官方 AP
 - 日记渲染可按 `d.by === 'ai'` 加一个极轻的标记；旧条目没有 `by` 字段，视为 `auto`。
 - 设置区需要两个新元素（属结构改动，按 §6.3 先打招呼）：展示 `getSaveCode()`、以及一个输入码触发 `cloudPull(code)` 的入口；同步状态用 `cloudStatus()` 轮询即可，不需要读 DOM 之外的东西。
 - 关页面时补一次同步：`save()` 的上云是 4 秒防抖，`pagehide` 时定时器不会触发，建议在现有的 `window.addEventListener('pagehide', save)` 旁改成 `() => { save(); cloudPush(); }`（`cloudPush` 自身幂等，失败就留到下次）。`state.js` 不能自己监听 DOM 事件，这一步必须在视图层。
+
+## 实际部署（2026-11-16，A 线在 Qoder Desktop 完成）
+
+站点：https://after-you-leave-nbgg429dc5t.qoder.zone （公开访问）。后端能力 database + functions + qoder 已分配（function_backend 模型），PAT 由平台自动签发为 `QODER_PAT`，不需要手工配任何 Secret。
+
+**真实运行时形状**（推翻 sites/function.js 的事件形状猜测）：Sites Function 是 Deno Edge，入口 `index.ts` + `Deno.serve(Request → Response)`；数据库 SDK 由 Worker 注入 `./_qoder/backend.mjs`（`createDatabaseClient()`，链式 from/select/eq/limit/update/insertIfAbsent）；浏览器走同源 `/functions/v1/app/api/*`，Gateway 把逻辑名 app 换成物理函数名并保留后缀。`sites/function.js` 与 `sites/probe.mjs` 保留作历史参考，不再是部署入口。
+
+**代码组织**：
+
+- `lib/api.js`：从 server.js 抽出的纯逻辑层 `handleApi`（无 Node 依赖），Node 与 Deno 共用；server.js 仍导出 `handleApi`，全部旧测试不变。
+- `sites/store-db.js`：sites-db 存档驱动，与 file 驱动同一套校验/rev 语义；已有行用 (sid, rev) 条件更新做 CAS，新行 insertIfAbsent 防重。本地夹具测试 `dev/test-function-store.mjs`（5 用例）。
+- `sites/index.ts`：Deno 入口。process.env  shim 后动态 import api.js；QCA origin 固定为 get_context 返回的 `https://api.qoder.com.cn`；首次 AI 请求时懒初始化：读 app.ai_state 绑定 → 缺 Environment 则按名 `nizouzhihou-env` 复用/创建 → 缺模型则 GET /models 选首个 enabled；绑定持久化首写者胜出。QCA 超时压到 10s（前端 12s/15s 先超时），任何失败回落 local。
+- `scripts/build-function.mjs`：把 cloud/ 源码组装成自包含 `functions/` 包（prompt.js 的 fs 读 JSON 换成 JSON import attributes，其余逐字复制）。**改 cloud/lib 后必须重跑**。
+
+**数据库**（app schema，function_backend 私有策略，匿名不可直连）：
+
+- `app.saves(sid pk, rev, updated_at, save jsonb)` — 存档码即凭证，rev 单调。
+- `app.ai_state(key pk, value jsonb, updated_at)` — QCA Agent/Environment/模型绑定。
+
+**发布**：`node scripts/build-function.mjs` → 同步 dist/ → prepare_site（projectId 复用，functionDirectory: "functions"，databaseAccess: "read_write" + 当次 get_database_schema 的 schemaRef，secretNames 不需要）。前端 app.js 在 *.qoder.zone 域名下自动把 aiConfig base 指到 `/functions/v1/app`，本地仍可用 `?api=` 覆盖。
+
+**已知边界**：QCA 资源发现按名复用 + DB 首写者胜出，跨实例并发冷启动理论上可能建出重复 Agent/Environment（同配置、无用户数据，可接受）；未实现 initialization.md 的完整 durable coordinator（本应用无跨会话历史恢复需求，Session 按 sid 30 分钟 TTL，失败一律降级）。

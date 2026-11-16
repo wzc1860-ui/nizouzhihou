@@ -193,6 +193,8 @@ function renderDiary() {
   });
 }
 
+let cloudMsgHold = 0;
+
 function renderCloud() {
   const box = $('cloudBox');
   if (!S.name) { box.hidden = true; return; }
@@ -207,7 +209,7 @@ function renderCloud() {
     const d = new Date(st.syncedAt);
     text = `已备份到云端 · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   } else text = '还没备份过，有改动会自动上传';
-  $('cloudStatus').textContent = text;
+  if (Date.now() >= cloudMsgHold) $('cloudStatus').textContent = text;
 }
 
 function sync() { renderBars(); save(); renderCloud(); }
@@ -391,7 +393,10 @@ async function doRestore() {
   const r = await cloudPull(code);
   btn.disabled = false; btn.textContent = '恢复';
   if (r.ok) location.reload();
-  else $('cloudStatus').textContent = RESTORE_FAIL[r.reason] || '没找到这份存档，再核对一下码。';
+  else {
+    cloudMsgHold = Date.now() + 10000;
+    $('cloudStatus').textContent = RESTORE_FAIL[r.reason] || '没找到这份存档，再核对一下码。';
+  }
 }
 $('restoreBtn').addEventListener('click', doRestore);
 $('restoreInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRestore(); });
@@ -420,7 +425,8 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('resize', resize);
 
-aiConfig({ base: new URLSearchParams(location.search).get('api') || '' });
+aiConfig({ base: new URLSearchParams(location.search).get('api')
+  || (location.hostname.endsWith('.qoder.zone') ? '/functions/v1/app' : '') });
 resize();
 renderDiary();
 renderBars();

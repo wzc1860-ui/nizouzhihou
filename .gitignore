@@ -5,3 +5,6 @@ Thumbs.db
 *.log
 .env
 .env.*
+dist/
+functions/
+*.qoder.site
