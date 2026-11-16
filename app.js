@@ -128,7 +128,7 @@ const act = {
   }
 };
 
-function sendTalk() {
+async function sendTalk() {
   const input = $('talkInput'), text = input.value.trim();
   if (!text) return;
   input.value = '';
@@ -136,13 +136,20 @@ function sendTalk() {
   const me = document.createElement('p');
   me.className = 'me'; me.textContent = '你：' + text;
   log.appendChild(me);
-  const rule = TALK_RULES.find((r) => r.hit.some((k) => text.includes(k)));
-  const answer = rule ? rule.reply() : (S.mood < 40 ? '……（它把头偏向一边，但没有走开。）' : pick(TALK_FALLBACK));
   const it = document.createElement('p');
-  it.className = 'it'; it.textContent = `${S.name}：${answer}`;
-  setTimeout(() => { log.appendChild(it); it.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 420);
+  it.className = 'it'; it.textContent = `${S.name}：……`;
+  log.appendChild(it); it.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   talk();
   burst('pet');
+  const r = await aiSay(text);
+  let answer;
+  if (r.ok) answer = r.reply;
+  else {
+    const rule = TALK_RULES.find((r2) => r2.hit.some((k) => text.includes(k)));
+    answer = rule ? rule.reply() : (S.mood < 40 ? '……（它把头偏向一边，但没有走开。）' : pick(TALK_FALLBACK));
+  }
+  it.textContent = `${S.name}：${answer}`;
+  it.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   sync();
 }
 
@@ -176,18 +183,45 @@ function renderDiary() {
     const dt = new Date(d.t);
     t.textContent = `${dt.getMonth() + 1}月${dt.getDate()}日 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
     li.appendChild(t);
+    if (d.by === 'ai') {
+      const tag = document.createElement('i');
+      tag.className = 'ai-tag'; tag.textContent = 'AI';
+      t.appendChild(tag);
+    }
     li.appendChild(document.createTextNode(d.text));
     ul.appendChild(li);
   });
 }
 
-function sync() { renderBars(); save(); }
+function renderCloud() {
+  const box = $('cloudBox');
+  if (!S.name) { box.hidden = true; return; }
+  box.hidden = false;
+  $('saveCode').textContent = getSaveCode() || '——';
+  const st = cloudStatus();
+  let text;
+  if (!st.enabled) text = '存档在本机浏览器里';
+  else if (st.pending) text = '正在备份到云端…';
+  else if (st.dirty) text = '有改动，稍后自动备份';
+  else if (st.syncedAt) {
+    const d = new Date(st.syncedAt);
+    text = `已备份到云端 · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  } else text = '还没备份过，有改动会自动上传';
+  $('cloudStatus').textContent = text;
+}
+
+function sync() { renderBars(); save(); renderCloud(); }
+
+async function diaryEntry(kind, fallback) {
+  const d = await aiDiary(kind);
+  addDiary(d.ok ? d.text : fallback, d.ok ? 'ai' : 'auto');
+  renderDiary();
+}
 
 function onGrew() {
   const line = pick(GROW_LINES);
   say(line, true);
-  addDiary(line);
-  renderDiary();
+  diaryEntry('grow', line);
 }
 
 function onReturn() {
@@ -198,7 +232,7 @@ function onReturn() {
     const band = HOME_LINES.find((b) => r.away < b.under);
     const line = pick(band.pool);
     say(line, true);
-    if (r.away > 10 * HOUR) { addDiary(line); renderDiary(); }
+    if (r.away > 10 * HOUR) diaryEntry('return', line);
   } else if (r.hungry) {
     say(pick(HUNGRY_LINES), true);
   }
@@ -206,8 +240,7 @@ function onReturn() {
     const d = dailyTick();
     if (d) {
       const moodWord = S.mood > 65 ? '还算开心' : S.mood > 35 ? '平静' : '有点想你';
-      addDiary(`第 ${d} 天。你离开了 ${(r.away / HOUR).toFixed(0)} 小时。我吃了 ${S.feeds} 次东西，被摸了 ${S.touches} 次。今天${moodWord}。`);
-      renderDiary();
+      diaryEntry('daily', `第 ${d} 天。你离开了 ${(r.away / HOUR).toFixed(0)} 小时。我吃了 ${S.feeds} 次东西，被摸了 ${S.touches} 次。今天${moodWord}。`);
     }
   }
 }
@@ -325,6 +358,44 @@ $('openBtn').addEventListener('click', () => {
 $('adoptBtn').addEventListener('click', doAdopt);
 $('adoptInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdopt(); });
 
+$('copyCode').addEventListener('click', async () => {
+  const code = getSaveCode();
+  if (!code) return;
+  let ok = false;
+  try { await navigator.clipboard.writeText(code); ok = true; } catch (e) {}
+  if (!ok) {
+    const ta = document.createElement('textarea');
+    ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  const b = $('copyCode');
+  if (ok) { b.textContent = '已复制'; setTimeout(() => { b.textContent = '复制'; }, 1600); }
+  else window.prompt('手动抄下这串存档码：', code);
+});
+
+const RESTORE_FAIL = {
+  stale: '本机的进度比云端新，没有覆盖。',
+  rate: '请求太频繁了，歇一会儿再试。',
+  network: '网络不通，稍后再试。',
+  empty: '云端没有这份存档，再核对一下码。'
+};
+
+async function doRestore() {
+  const code = $('restoreInput').value.trim();
+  if (!code) return;
+  if (!confirm('恢复会用它替换本机现在的进度。确定吗？')) return;
+  const btn = $('restoreBtn');
+  btn.disabled = true; btn.textContent = '找回中';
+  const r = await cloudPull(code);
+  btn.disabled = false; btn.textContent = '恢复';
+  if (r.ok) location.reload();
+  else $('cloudStatus').textContent = RESTORE_FAIL[r.reason] || '没找到这份存档，再核对一下码。';
+}
+$('restoreBtn').addEventListener('click', doRestore);
+$('restoreInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRestore(); });
+
 function doAdopt() {
   const name = $('adoptInput').value.trim() || '小满';
   pending = pending || roll();
@@ -341,7 +412,7 @@ function doAdopt() {
   sync();
 }
 
-window.addEventListener('pagehide', save);
+window.addEventListener('pagehide', () => { save(); cloudPush(); });
 document.addEventListener('visibilitychange', () => {
   document.title = document.hidden ? '它还在 · 你走之后' : '你走之后 · 一只关掉网页也在长大的云端宠物';
   if (document.hidden) save();
@@ -349,9 +420,11 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('resize', resize);
 
+aiConfig({ base: new URLSearchParams(location.search).get('api') || '' });
 resize();
 renderDiary();
 renderBars();
+renderCloud();
 requestAnimationFrame(loop);
 
 if (!S.name) {
@@ -362,5 +435,5 @@ if (!S.name) {
   ensureSprite(S.species);
   onReturn();
 }
-setInterval(() => { if (advance(MIN)) onGrew(); nowLine(); renderBars(); save(); }, MIN);
-setInterval(() => { if (Date.now() - lastLineAt > 25 * SEC) nowLine(); }, 4 * SEC);
+setInterval(() => { if (advance(MIN)) onGrew(); nowLine(); renderBars(); save(); renderCloud(); }, MIN);
+setInterval(() => { if (Date.now() - lastLineAt > 25 * SEC) nowLine(); renderCloud(); }, 4 * SEC);

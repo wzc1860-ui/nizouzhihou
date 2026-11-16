@@ -92,6 +92,35 @@ body {
 .diary li { font-size: 14px; line-height: 1.7; color: #cdd3e0; }
 .diary time { display: block; font-size: 11px; color: #626c85; margin-bottom: 3px; letter-spacing: .08em; }
 .diary .empty { color: #55607a; font-size: 13px; }
+.diary .ai-tag {
+  font-style: normal; font-size: 10px; margin-left: 7px; padding: 0 5px;
+  color: #6fb3d8; border: 1px solid #2a3a55; border-radius: 5px; letter-spacing: .08em;
+}
+
+.cloud { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 18px; }
+.cloud h2 { font-size: 12px; letter-spacing: .3em; color: var(--sub); font-weight: 400; }
+.cloud-code { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--sub); }
+.cloud-code b {
+  flex: 1; font-size: 15px; letter-spacing: .14em; color: var(--warm);
+  font-family: ui-monospace, Consolas, monospace; font-weight: 600;
+}
+.cloud-code button {
+  appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  border-radius: 9px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.cloud-status { margin-top: 8px; font-size: 12px; color: #626c85; letter-spacing: .04em; }
+.cloud-restore { display: flex; gap: 9px; margin-top: 12px; }
+.cloud-restore input {
+  flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 12px; padding: 11px 13px; font-size: 13.5px; font-family: inherit; letter-spacing: .06em;
+}
+.cloud-restore input:focus { outline: none; border-color: #3a4767; }
+.cloud-restore button {
+  appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--warm);
+  border-radius: 12px; padding: 0 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+.cloud-restore button:disabled { opacity: .55; cursor: default; }
+.cloud-tip { margin-top: 10px; font-size: 11.5px; line-height: 1.7; color: #55607a; }
 
 .foot { margin-top: 28px; text-align: center; color: #5b6478; font-size: 12px; line-height: 2; }
 .foot .ghost {

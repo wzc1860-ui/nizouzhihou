@@ -45,6 +45,21 @@
     <ul id="diaryList"></ul>
   </section>
 
+  <section class="cloud" id="cloudBox" hidden>
+    <h2>云端存档</h2>
+    <div class="cloud-code">
+      <span>存档码</span>
+      <b id="saveCode">——</b>
+      <button type="button" id="copyCode">复制</button>
+    </div>
+    <p class="cloud-status" id="cloudStatus">本地存档</p>
+    <div class="cloud-restore">
+      <input id="restoreInput" type="text" maxlength="14" placeholder="输入存档码，换设备找回它" autocomplete="off">
+      <button type="button" id="restoreBtn">恢复</button>
+    </div>
+    <p class="cloud-tip">知道这串码的人就能带走它。抄在只有你看得到的地方。</p>
+  </section>
+
   <footer class="foot">
     <p>你走之后，它还在。</p>
     <button type="button" class="ghost" id="btnReset">重新领养</button>
