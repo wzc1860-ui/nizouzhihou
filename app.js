@@ -244,7 +244,7 @@ function showReturn(r) {
   $('returnNote').textContent = hasDiary
     ? '你不在的这段日子，它写进了自己的日记。' : '它替你留住了一些安静的时刻。';
   const action = $('returnAction');
-  action.textContent = hasDiary ? '看看它写的日记' : '摸摸它';
+  action.querySelector('span').textContent = hasDiary ? '看看它写的日记' : '摸摸它';
   action.onclick = () => {
     card.hidden = true;
     if (hasDiary) $('diaryList').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -401,8 +401,8 @@ $('copyCode').addEventListener('click', async () => {
     try { ok = document.execCommand('copy'); } catch (e) {}
     document.body.removeChild(ta);
   }
-  const b = $('copyCode');
-  if (ok) { b.textContent = '已复制'; setTimeout(() => { b.textContent = '复制'; }, 1600); }
+  const b = $('copyCode'), label = b.querySelector('span');
+  if (ok) { label.textContent = '已复制'; setTimeout(() => { label.textContent = '复制'; }, 1600); }
   else window.prompt('手动抄下这串存档码：', code);
 });
 

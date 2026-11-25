@@ -3,25 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0e1220">
+<meta name="theme-color" content="#090d17">
+<meta name="description" content="你走之后，它还在。一只关掉网页也会长大的云端宠物。">
 <title>你走之后 · 一只关掉网页也在长大的云端宠物</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app">
+<svg class="svg-defs" aria-hidden="true">
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/><path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></symbol>
+  <symbol id="i-bowl" viewBox="0 0 24 24"><path d="M3 11h18c0 5-3.6 8-9 8s-9-3-9-8Z"/><path d="M7 7c0-1 1-1.5 1-2.5M12 7c0-1 1-1.5 1-2.5M17 7c0-1 1-1.5 1-2.5"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 5.8a5.4 5.4 0 0 0-7.6 0L12 7l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 22l8.8-8.6a5.4 5.4 0 0 0 0-7.6Z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-9 8.5 9.6 9.6 0 0 1-4-.9L3 21l1.7-4.5A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8 10h8M8 14h5"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5v-17Z"/><path d="M4 17h16M8 6h8M8 10h6"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M6.5 19a4.5 4.5 0 0 1-.7-8.9A7 7 0 0 1 19 8.5 5.5 5.5 0 0 1 18.5 19h-12Z"/><path d="M9 14l3-3 3 3M12 11v7"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="m3 7 9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7M12 11v10M7.5 5l9 4"/></symbol>
+</svg>
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<main class="app">
   <header class="top">
-    <div class="brand">你 走 之 后</div>
+    <div class="brand">
+      <svg class="icon brand-icon" aria-hidden="true"><use href="#i-spark"></use></svg>
+      <div><strong>你走之后</strong><small>AFTER YOU LEAVE</small></div>
+    </div>
     <div class="day" id="dayLabel">在一起的第 1 天</div>
   </header>
 
-  <section class="stage-wrap">
+  <section class="stage-wrap" aria-label="宠物房间">
+    <div class="stage-top">
+      <span class="presence"><i></i>陪伴中</span>
+      <span class="room">ROOM 01 · NIGHT</span>
+    </div>
     <canvas id="pet"></canvas>
     <div class="pet-name"><span id="petName"></span><em id="petSpecies"></em><em id="petStage">小小</em></div>
     <div class="pet-line" id="petLine"></div>
   </section>
 
   <section class="return-card" id="returnCard" aria-labelledby="returnTitle" hidden>
-    <button type="button" class="return-close" id="closeReturn" aria-label="收起离线回顾">×</button>
+    <button type="button" class="return-close" id="closeReturn" aria-label="收起离线回顾"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button>
     <p class="return-kicker">你不在的时候</p>
     <h2 id="returnTitle">它还在慢慢长大</h2>
     <div class="return-stats">
@@ -29,40 +52,40 @@
       <div><span>成长变化</span><b id="growthGain">——</b></div>
     </div>
     <p class="return-note" id="returnNote"></p>
-    <button type="button" class="return-action" id="returnAction">看看它写的日记</button>
+    <button type="button" class="return-action" id="returnAction"><span>看看它写的日记</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
   </section>
 
-  <section class="bars">
-    <div class="bar"><span>饱食</span><i><b class="f-hunger"></b></i><em id="numHunger">0</em></div>
-    <div class="bar"><span>心情</span><i><b class="f-mood"></b></i><em id="numMood">0</em></div>
-    <div class="bar"><span>成长</span><i><b class="f-growth"></b></i><em id="numGrowth">0</em></div>
+  <section class="bars" aria-label="宠物状态">
+    <div class="bar"><span>饱食</span><em id="numHunger">0</em><i><b class="f-hunger"></b></i></div>
+    <div class="bar"><span>心情</span><em id="numMood">0</em><i><b class="f-mood"></b></i></div>
+    <div class="bar"><span>成长</span><em id="numGrowth">0</em><i><b class="f-growth"></b></i></div>
   </section>
 
-  <section class="actions">
-    <button type="button" data-act="feed">喂食</button>
-    <button type="button" data-act="touch">抚摸</button>
-    <button type="button" data-act="talk">说话</button>
+  <section class="actions" aria-label="和宠物互动">
+    <button type="button" data-act="feed"><svg class="icon" aria-hidden="true"><use href="#i-bowl"></use></svg><span>喂食</span><small>饱食 +18</small></button>
+    <button type="button" data-act="touch" class="primary"><svg class="icon" aria-hidden="true"><use href="#i-heart"></use></svg><span>抚摸</span><small>心情 +9</small></button>
+    <button type="button" data-act="talk"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg><span>说话</span><small>它在听</small></button>
   </section>
 
   <section class="talk" id="talkBox" hidden>
     <div class="talk-log" id="talkLog"></div>
     <div class="talk-row">
       <input id="talkInput" type="text" maxlength="40" placeholder="跟它说点什么" autocomplete="off">
-      <button type="button" id="talkSend">说给它</button>
+      <button type="button" id="talkSend"><span>说给它</span><svg class="icon" aria-hidden="true"><use href="#i-arrow"></use></svg></button>
     </div>
   </section>
 
   <section class="diary">
-    <h2>它的日记</h2>
+    <div class="section-head"><h2><svg class="icon" aria-hidden="true"><use href="#i-book"></use></svg>它的日记</h2><span>它替你记下的</span></div>
     <ul id="diaryList"></ul>
   </section>
 
   <section class="cloud" id="cloudBox" hidden>
-    <h2>云端存档</h2>
+    <div class="section-head"><h2><svg class="icon" aria-hidden="true"><use href="#i-cloud"></use></svg>云端存档</h2><span>换设备也能找回</span></div>
     <div class="cloud-code">
       <span>存档码</span>
       <b id="saveCode">——</b>
-      <button type="button" id="copyCode">复制</button>
+      <button type="button" id="copyCode"><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span>复制</span></button>
     </div>
     <p class="cloud-status" id="cloudStatus">本地存档</p>
     <div class="cloud-restore">
@@ -77,22 +100,22 @@
     <p>你走之后，它还在。</p>
     <button type="button" class="ghost" id="btnReset">重新领养</button>
   </footer>
-</div>
+</main>
 
 <div class="adopt" id="adoptMask" hidden>
   <div class="adopt-card">
-    <p class="adopt-kicker">一只云端宠物，装在这个盒子里</p>
+    <p class="adopt-kicker"><span>01</span> 一只云端宠物，装在这个盒子里</p>
     <div class="box" id="boxFace">
-      <div class="box-art"><span>?</span></div>
+      <div class="box-art"><span>?</span><i></i></div>
       <p class="box-tip">八只里随机一只。拆开之前，谁也不知道是谁在等你。</p>
-      <button type="button" id="openBtn">拆开</button>
+      <button type="button" id="openBtn"><svg class="icon" aria-hidden="true"><use href="#i-box"></use></svg><span>拆开看看</span></button>
     </div>
     <div class="reveal" id="revealFace" hidden>
       <img id="revealImg" alt="拆到的宠物">
       <p class="reveal-name"><b id="revealSpecies"></b><em id="revealRarity"></em></p>
       <p class="reveal-greet" id="revealGreet"></p>
       <input id="adoptInput" type="text" maxlength="8" placeholder="给它取个名字" autocomplete="off">
-      <button type="button" id="adoptBtn">就叫这个</button>
+      <button type="button" id="adoptBtn"><span>就叫这个</span><svg class="icon" aria-hidden="true"><use href="#i-heart"></use></svg></button>
     </div>
   </div>
 </div>
