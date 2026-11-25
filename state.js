@@ -108,9 +108,11 @@ function advance(ms) {
 function resume() {
   const now = Date.now();
   const away = clamp(now - S.lastSeen, 0, OFFLINE_CAP);
+  const growthBefore = S.growth, stageBefore = stageIndex();
   const grew = advance(away);
   const crossedDay = Math.floor((S.lastSeen - S.bornAt) / DAY) < Math.floor((now - S.bornAt) / DAY);
-  return { away, grew, hungry: S.hunger < 30, crossedDay };
+  return { away, grew, growthGain: Math.max(0, S.growth - growthBefore), stageBefore, stageAfter: stageIndex(),
+           hungry: S.hunger < 30, crossedDay };
 }
 
 function feed() {

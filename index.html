@@ -20,6 +20,18 @@
     <div class="pet-line" id="petLine"></div>
   </section>
 
+  <section class="return-card" id="returnCard" aria-labelledby="returnTitle" hidden>
+    <button type="button" class="return-close" id="closeReturn" aria-label="收起离线回顾">×</button>
+    <p class="return-kicker">你不在的时候</p>
+    <h2 id="returnTitle">它还在慢慢长大</h2>
+    <div class="return-stats">
+      <div><span>离开了</span><b id="awayTime">——</b></div>
+      <div><span>成长变化</span><b id="growthGain">——</b></div>
+    </div>
+    <p class="return-note" id="returnNote"></p>
+    <button type="button" class="return-action" id="returnAction">看看它写的日记</button>
+  </section>
+
   <section class="bars">
     <div class="bar"><span>饱食</span><i><b class="f-hunger"></b></i><em id="numHunger">0</em></div>
     <div class="bar"><span>心情</span><i><b class="f-mood"></b></i><em id="numMood">0</em></div>
@@ -54,9 +66,10 @@
     </div>
     <p class="cloud-status" id="cloudStatus">本地存档</p>
     <div class="cloud-restore">
-      <input id="restoreInput" type="text" maxlength="14" placeholder="输入存档码，换设备找回它" autocomplete="off">
+      <input id="restoreInput" type="text" maxlength="14" placeholder="输入存档码，换设备找回它" autocomplete="off" aria-describedby="restoreHelp">
       <button type="button" id="restoreBtn">恢复</button>
     </div>
+    <p class="restore-help" id="restoreHelp" role="status" aria-live="polite" hidden></p>
     <p class="cloud-tip">知道这串码的人就能带走它。抄在只有你看得到的地方。</p>
   </section>
 

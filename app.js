@@ -226,9 +226,38 @@ function onGrew() {
   diaryEntry('grow', line);
 }
 
+function awayText(ms) {
+  const hours = Math.floor(ms / HOUR);
+  if (hours < 24) return `${Math.max(1, hours)} 小时`;
+  const days = Math.floor(hours / 24), rest = hours % 24;
+  return rest ? `${days} 天 ${rest} 小时` : `${days} 天`;
+}
+
+function showReturn(r) {
+  const card = $('returnCard');
+  if (card.hidden && r.away < 3 * HOUR && r.growthGain < 1) return;
+  $('awayTime').textContent = awayText(r.away);
+  $('growthGain').textContent = `+${r.growthGain < 10 ? r.growthGain.toFixed(1) : Math.round(r.growthGain)}`;
+  $('returnTitle').textContent = r.stageAfter > r.stageBefore
+    ? `它长成了「${STAGES[r.stageAfter].name}」` : '它还在慢慢长大';
+  const hasDiary = r.away > 10 * HOUR;
+  $('returnNote').textContent = hasDiary
+    ? '你不在的这段日子，它写进了自己的日记。' : '它替你留住了一些安静的时刻。';
+  const action = $('returnAction');
+  action.textContent = hasDiary ? '看看它写的日记' : '摸摸它';
+  action.onclick = () => {
+    card.hidden = true;
+    if (hasDiary) $('diaryList').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else act.touch();
+  };
+  card.hidden = false;
+}
+
 function onReturn() {
   const r = resume();
   if (!S.name) return;
+  renderBars();
+  showReturn(r);
   if (r.grew) onGrew();
   if (r.away > 3 * HOUR) {
     const band = HOME_LINES.find((b) => r.away < b.under);
@@ -378,28 +407,52 @@ $('copyCode').addEventListener('click', async () => {
 });
 
 const RESTORE_FAIL = {
-  stale: '本机的进度比云端新，没有覆盖。',
-  rate: '请求太频繁了，歇一会儿再试。',
-  network: '网络不通，稍后再试。',
-  empty: '云端没有这份存档，再核对一下码。'
+  stale: '本机进度比云端新，已保留当前进度。可以先复制当前存档码备份，或稍后再试。',
+  rate: '请求太频繁了。等 1 分钟后再试，存档码会保留在输入框里。',
+  network: '网络连接中断，当前进度没有被覆盖。检查网络后再试一次。',
+  empty: '没找到这份存档。请确认它来自已发布网站且完成过云端备份；只在浏览器里领养的存档不能跨设备恢复。',
+  off: '当前页面没有连接云端。请从发布的 Qoder 网站打开后再恢复。',
+  'too-large': '这份存档暂时过大，无法读取。当前进度没有被覆盖，请稍后再试。'
 };
 
+function clearRestoreHelp() {
+  $('restoreHelp').hidden = true;
+  $('restoreHelp').textContent = '';
+  $('restoreInput').removeAttribute('aria-invalid');
+}
+
+function showRestoreHelp(text) {
+  $('restoreHelp').textContent = text;
+  $('restoreHelp').hidden = false;
+}
+
 async function doRestore() {
-  const code = $('restoreInput').value.trim();
-  if (!code) return;
+  const input = $('restoreInput'), code = normCode(input.value);
+  clearRestoreHelp();
+  if (!code) { input.focus(); return; }
+  if (code.length !== CODE_LEN) {
+    showRestoreHelp(`存档码应为 ${CODE_LEN} 位字母和数字。请从「云端存档」上方复制完整存档码。`);
+    input.setAttribute('aria-invalid', 'true');
+    input.focus();
+    return;
+  }
   if (!confirm('恢复会用它替换本机现在的进度。确定吗？')) return;
   const btn = $('restoreBtn');
   btn.disabled = true; btn.textContent = '找回中';
-  const r = await cloudPull(code);
-  btn.disabled = false; btn.textContent = '恢复';
+  let r;
+  try { r = await cloudPull(code); }
+  finally { btn.disabled = false; btn.textContent = '恢复'; }
   if (r.ok) location.reload();
   else {
     cloudMsgHold = Date.now() + 10000;
-    $('cloudStatus').textContent = RESTORE_FAIL[r.reason] || '没找到这份存档，再核对一下码。';
+    $('cloudStatus').textContent = '没有恢复 · 当前进度未变';
+    showRestoreHelp(RESTORE_FAIL[r.reason] || '没有找到这份存档。请核对完整存档码后再试。');
   }
 }
 $('restoreBtn').addEventListener('click', doRestore);
+$('restoreInput').addEventListener('input', clearRestoreHelp);
 $('restoreInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRestore(); });
+$('closeReturn').addEventListener('click', () => { $('returnCard').hidden = true; });
 
 function doAdopt() {
   const name = $('adoptInput').value.trim() || '小满';
